@@ -45,6 +45,71 @@
     });
   });
 
+  /* ── Slido overlay ──────────────────────────────────────────────────
+     One shared iframe for all five stop points (03, 07, 15, 29, 33). The
+     embed always shows whichever poll is currently open, so a single URL
+     serves every question — and this is the participant URL on purpose:
+     wall.sli.do refuses to render framed (it needs presenter auth), and
+     app.sli.do shows the live result bars anyway.
+
+     The iframe is created on first open, so the deck holds no Slido
+     connection unless you actually summon it. */
+  var SLIDO_URL = 'https://app.sli.do/event/b6zu29r28cX5FpsxJE48Rc';
+  var overlay = null;
+
+  function slidoToggle(force) {
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'slido-overlay';
+      var panel = document.createElement('div');
+      panel.className = 'panel';
+      var bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.innerHTML = '<span><b>slido</b> &nbsp;live</span><span>S / Esc to close</span>';
+      panel.appendChild(bar);
+      overlay.appendChild(panel);
+      overlay.addEventListener('click', function (ev) {
+        if (ev.target === overlay) slidoToggle(false);
+      });
+      document.body.appendChild(overlay);
+    }
+    var willOpen = force === undefined ? !overlay.hasAttribute('data-open') : force;
+    if (willOpen) {
+      if (!overlay.querySelector('iframe')) {          // lazy: first open only
+        var f = document.createElement('iframe');
+        f.src = SLIDO_URL;
+        f.title = 'Slido';
+        f.setAttribute('allow', 'clipboard-write');
+        overlay.querySelector('.panel').appendChild(f);
+      }
+      overlay.setAttribute('data-open', '');
+    } else {
+      overlay.removeAttribute('data-open');
+    }
+  }
+
+  // Clicking a "⟶ slido" chip opens the same overlay — a mouse path that does
+  // not depend on the keyboard reaching the page.
+  document.addEventListener('click', function (e) {
+    var chip = e.target && e.target.closest && e.target.closest('[data-slido]');
+    if (chip) { e.preventDefault(); e.stopPropagation(); slidoToggle(true); }
+  }, true);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (e.key === 's' || e.key === 'S') {
+      e.preventDefault();
+      e.stopPropagation();   // keep deck-stage from acting on the same key
+      slidoToggle();
+    } else if (e.key === 'Escape' && overlay && overlay.hasAttribute('data-open')) {
+      e.preventDefault();
+      e.stopPropagation();
+      slidoToggle(false);
+    }
+  }, true);                  // capture: run before deck-stage's own handler
+
   // Reduced motion: never autoplay the clips, but let the viewer start them.
   if (reduce) {
     document.addEventListener('DOMContentLoaded', function () {
@@ -73,6 +138,39 @@
 body { margin: 0; background: var(--bg); }
 a { color: var(--ac); text-decoration: none; }
 a:hover { color: #7DE9F7; }
+
+/* ── Slido overlay ──────────────────────────────────────────────────────
+   Press S to summon the live Slido event over the current slide, Esc to
+   dismiss. Built as an overlay rather than a panel inside the slides
+   because none of the five stop points has room: slide 07 has 0px of free
+   width and slide 29 only 146px, and the 423-573px available on 03/15/33
+   is too small to read from the back of a room once projected. */
+#slido-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(1, 4, 9, 0.82); backdrop-filter: blur(3px);
+}
+#slido-overlay[data-open] { display: flex; }
+#slido-overlay .panel {
+  width: min(1180px, 92vw); height: min(860px, 86vh);
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--ac-line);
+  border-radius: 14px; overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+#slido-overlay .bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--line);
+  font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--dim);
+  flex: none;
+}
+#slido-overlay .bar b { color: var(--ac); font-weight: 500; }
+#slido-overlay iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+@media print { #slido-overlay { display: none !important; } }
+/* The "⟶ slido" chips double as a click target, so the overlay is reachable
+   without the keyboard if a presenter remote owns the arrow keys. */
+[data-slido] { cursor: pointer; transition: border-color 140ms ease; }
+[data-slido]:hover { border-color: var(--ac) !important; }
 
 /* ── Entrance motion for the diagram slides ─────────────────────────────
    Follows the deck-stage contract: the visible end state IS the base style,
@@ -306,7 +404,7 @@ a:hover { color: #7DE9F7; }
 </section>
 
 <section data-label="07 Human time" data-speaker-notes="把 pipeline 放回真實的工作情境：一張 JIRA ticket——「eng build suspend 後 Wi-Fi 掉線」。真正的工程工作只在兩端：前面讀 log、形成假設、決定要改哪裡；後面驗證這個修法到底對不對。中間那三到六小時——sync、build、flash——是機器在做，我只是被綁著。而且假設錯了，整條 bar 要再跑一次。一天下來我可能只驗證了兩、三個假設。這才是 firmware 開發真正的節奏，也是為什麼「AI 幫你寫 code」搞錯重點。（互動版：alanhc.github.io/android_skills） 接 slido 停點（60–90 秒）：講完「一輪 2–5 小時」先別翻頁，開 slido 第 2 題——你自己的 build 迴圈一輪多久？<30 分鐘 / 1–3 小時 / 半天以上 / 我不跑 build。等分佈出來，直接拿現場數據接論證：「在座 X 成的人一輪要半天——這就是為什麼問題從來不是打字速度」。" style="background: var(--bg); color: var(--txt); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 52px; padding: 0 100px; box-sizing: border-box;">
-  <div style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">poll · your loop, one iteration?</span></div>
+  <div data-slido="" style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">poll · your loop, one iteration?</span></div>
 
   <div>
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 16px;">One ticket, wall-clock view</div>
@@ -543,7 +641,7 @@ a:hover { color: #7DE9F7; }
 </section>
 
 <section data-anim="stagger" data-label="15 The decision tree" data-speaker-notes="上一頁是三張卡，這一頁把它接成一條可以照著跑的判斷流。拿任何一個 build step 進來，照順序問三個問題。第一題：不可逆嗎？bootloader unlock、flashall——是，就停在人確認，量表壓在 2 到 3，不用問下去。第二題：有客觀檢查嗎？SHA-256、build pass/fail、CI——有，agent 全權，推到 8 到 10。第三題：剩下的就是需要上下文的：找不到 tag、非預期錯誤、硬體異常——交還給人，量表不超過 4。強調順序是有意義的：可逆性先問，因為不可逆的錯誤沒有第二次機會；可驗證性第二，因為它決定 agent 能不能自己收斂。demo 裡兩個 skill 的停頓點，就是這條流程跑出來的結果。 接 slido 停點（90 秒）：這頁講完開 slido 第 3 題（quiz）——agent 跑到 fastboot flashall，裝置是 locked test device，它該怎麼做？a) 直接跑 b) 停下來問人 c) 跳過。正解 b：不可逆，第一題就攔下來。公佈答案後說：「恭喜，你們剛剛親手做了一次 loop engineering」。這是全場的記憶點。" style="background: var(--bg); color: var(--txt); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 0 100px; box-sizing: border-box; --dc-step: 90ms;">
-  <div data-anim="hold" style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">quiz · what should the agent do?</span></div>
+  <div data-anim="hold" data-slido="" style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">quiz · what should the agent do?</span></div>
 
   <div style="margin-bottom: 10px;">
     <h2 style="font-size: 56px; font-weight: 600; margin: 0 0 12px;">Run every step through it</h2>
@@ -849,7 +947,7 @@ a:hover { color: #7DE9F7; }
 </section>
 
 <section data-label="29 Accountability" data-speaker-notes="團隊尺度的一張，這頁我有一篇長文，撿三個概念就好。第一，automation bias：人因研究早就記錄，自動化只要對得夠久，人就會停止真的去看，最後盲目放行。第二，responsibility gap（Matthias 2004）：傳統究責建立在「你控制、你能預見」，但 agent 的產出你既沒寫過也無法完全預見——鏈條會斷。第三，accountability sink（Davies 2024）：組織最便宜的反應是指派一個 owner 當黑洞的招牌——一個不能否決 agent、不能改它邊界的 owner，只是出事時填報告的名字。所以這頁的主張是：approve 那個按鈕要有效，按的人必須同時拿到兩樣東西——能判斷的證據（sandbox、測試、CI，這是 DevSecOps 二十年前就想清楚的：把檢查左移、把 gate 寫成 code），和說「不簽」的權力。責任可以留在人身上，前提是權威也在。時間夠的話補一個經濟學雙關：AI agent 恰好叫 agent，但經濟學的 principal-agent problem 靠兩根支柱解——觀察它做了什麼、用誘因契約綁住它；AI agent 把兩根同時抽掉：推理是黑箱（無法觀察），沒有考績聲譽（無法用誘因綁）。所以老闆那股說不清的不安有教科書級的名字：你請了一個既監督不了、也沒有契約能綁住的 agent，唯一的修法是把它重新掛回一個可以被誘因約束的人身上。收尾一句：這些問題——不好管、沒人負責、怕被取代——沒有一個是 agent 發明的，agent 只是顯影劑，把組織原本靠默契糊住的裂縫一次照亮。想深入的人，我寫過一篇從眾手問題講到問責黑洞的長文，QR 在最後一頁的網站裡。 （選配停點，時間緊就跳過）進這頁之前開 word cloud——one word：你絕不讓 agent 單獨做的事？飄出來的幾乎都會是 flash / deploy / merge / prod。指著字雲說：你們的直覺就是可逆性準則——然後才進這頁的責任論證。" style="background: var(--bg); color: var(--txt); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 48px; padding: 0 100px; box-sizing: border-box;">
-  <div style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">word cloud · never let an agent…?</span></div>
+  <div data-slido="" style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">word cloud · never let an agent…?</span></div>
 
   <div>
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 20px;">At team scale</div>
