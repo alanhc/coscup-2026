@@ -4,6 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
+<script>
+/* Demo clip playback (slides 24-26).
+   deck-stage HIDES inactive slides rather than unmounting them, so without this
+   the three looping clips would run forever in the background. deck-stage
+   dispatches a composed, bubbling `slidechange`, so one delegated listener on
+   document covers every slide and survives whenever the component mounts.
+
+   video[loop]  = the three short demo clips  -> restart from 0 and play on entry
+   video legacy = slide 23's full 45s recording -> speaker-controlled, only paused
+                  on exit so it never keeps running off-screen. */
+(function () {
+  var reduce = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* The dc runtime renders this template through React, which silently drops
+     valueless boolean attributes (`loop`, `muted`) while keeping the ones
+     written in value form. An unmuted video is not allowed to autoplay, so
+     relying on the markup alone leaves the clips frozen on their poster.
+     Force the properties in JS — that holds no matter how the host renders. */
+  function normalize(v) {
+    v.loop = true;
+    v.muted = true;
+    v.playsInline = true;
+  }
+
+  document.addEventListener('slidechange', function (e) {
+    var active = e.detail && e.detail.slide;
+    document.querySelectorAll('video[data-clip]').forEach(normalize);
+    document.querySelectorAll('video').forEach(function (v) {
+      if (active && active.contains(v)) {
+        if (v.loop && !reduce) {
+          try { v.currentTime = 0; } catch (_) {}
+          var p = v.play();
+          if (p && p.catch) p.catch(function () {}); // autoplay blocked -> poster stays
+        }
+      } else {
+        v.pause();
+      }
+    });
+  });
+
+  // Reduced motion: never autoplay the clips, but let the viewer start them.
+  if (reduce) {
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('video[data-clip]').forEach(function (v) {
+        v.autoplay = false;
+        v.loop = false;
+        v.controls = true;
+        v.pause();
+      });
+    });
+  }
+})();
+</script>
 </head>
 <body>
 <x-dc>
@@ -19,6 +73,59 @@
 body { margin: 0; background: var(--bg); }
 a { color: var(--ac); text-decoration: none; }
 a:hover { color: #7DE9F7; }
+
+/* ── Entrance motion for the diagram slides ─────────────────────────────
+   Follows the deck-stage contract: the visible end state IS the base style,
+   and we only animate *from* hidden, gated on [data-deck-active] plus the
+   motion query. So print, PDF export, the thumbnail rail (which strips
+   data-deck-active from its clones) and reduced-motion viewers all see the
+   finished slide with no animation at all.
+
+   Markup hooks — one attribute per container, no structural selectors:
+     data-anim="stagger"  container whose direct children cascade in
+     data-anim="draw"     child that wipes in horizontally (rules, arrows)
+     data-anim="hold"     child that is chrome and must not animate
+   Per-slide tuning: set --dc-step (gap between children) on the container. */
+@keyframes dc-rise { from { opacity: 0; transform: translateY(16px); } }
+@keyframes dc-draw { from { opacity: 0; transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-deck-active] [data-anim~="stagger"] > *,
+  [data-deck-active][data-anim~="stagger"] > * {
+    animation: dc-rise 480ms cubic-bezier(.2, .8, .2, 1) both;
+  }
+  [data-deck-active] [data-anim~="stagger"] > [data-anim~="draw"],
+  [data-deck-active][data-anim~="stagger"] > [data-anim~="draw"] {
+    animation-name: dc-draw;
+    transform-origin: left center;
+  }
+  /* Slide chrome (footer, slido chip) sits in the same flow — never animate it. */
+  [data-deck-active] [data-anim~="stagger"] > [data-anim~="hold"],
+  [data-deck-active][data-anim~="stagger"] > [data-anim~="hold"] {
+    animation: none;
+  }
+
+  [data-anim~="stagger"] > *:nth-child(1)  { animation-delay: calc(var(--dc-lead, 40ms) +  0 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(2)  { animation-delay: calc(var(--dc-lead, 40ms) +  1 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(3)  { animation-delay: calc(var(--dc-lead, 40ms) +  2 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(4)  { animation-delay: calc(var(--dc-lead, 40ms) +  3 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(5)  { animation-delay: calc(var(--dc-lead, 40ms) +  4 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(6)  { animation-delay: calc(var(--dc-lead, 40ms) +  5 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(7)  { animation-delay: calc(var(--dc-lead, 40ms) +  6 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(8)  { animation-delay: calc(var(--dc-lead, 40ms) +  7 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(9)  { animation-delay: calc(var(--dc-lead, 40ms) +  8 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(10) { animation-delay: calc(var(--dc-lead, 40ms) +  9 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(11) { animation-delay: calc(var(--dc-lead, 40ms) + 10 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(12) { animation-delay: calc(var(--dc-lead, 40ms) + 11 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(13) { animation-delay: calc(var(--dc-lead, 40ms) + 12 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(14) { animation-delay: calc(var(--dc-lead, 40ms) + 13 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(15) { animation-delay: calc(var(--dc-lead, 40ms) + 14 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(16) { animation-delay: calc(var(--dc-lead, 40ms) + 15 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(17) { animation-delay: calc(var(--dc-lead, 40ms) + 16 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(18) { animation-delay: calc(var(--dc-lead, 40ms) + 17 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(19) { animation-delay: calc(var(--dc-lead, 40ms) + 18 * var(--dc-step, 55ms)); }
+  [data-anim~="stagger"] > *:nth-child(n+20) { animation-delay: calc(var(--dc-lead, 40ms) + 19 * var(--dc-step, 55ms)); }
+}
 </style>
 <template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0D1117"/><text x="50" y="58" font-family="monospace" font-size="26" font-weight="700" fill="#22D3EE" text-anchor="middle">&gt;_</text></svg></template>
 <script type="application/json" id="speaker-notes">["15 秒自我介紹：我是 Alan，在 IC 晶片廠做 embedded software，同時跑多個專案的 firmware build。先講清楚：今天不是 tool demo，也不是「我的 AI 採用之旅」——是講人跟 agent 的邊界該畫在哪。","自我介紹控制在 60 秒內，重點是建立可信度然後趕快進主題。我在聯發科做 embedded software，日常就是在多個專案之間跑 firmware build——今天講的東西全部來自這個工作。在那之前我在一家 server ODM 做 server 端的 firmware（BMC）和軟體，大約一年。這段值得提一句：從 server BMC 到手機 SoC，硬體差很多，但那條 sync → build → flash → verify 的迴圈長得一模一樣——所以今天的方法不是只對 Android 有用。公開分享的部分快速帶過：去年 COSCUP 我在開源韌體議程軌講怎麼用 GDB 除錯 OpenBMC——在 flash 很小的 Yocto target 上塞最小的 gdbserver 做遠端除錯，core dump 拉回 host 分析。提這個是要說明我習慣把踩過的坑寫下來、講出來，今天這場也是同一件事。最後一句要講：今天的內容全部使用公開的 AOSP source 和我自己的硬體，不涉及任何公司內部資訊，觀點也僅代表我個人。講完直接進第一性原理那頁。","開場互動 60 秒收掉：請大家掃 QR 或直接舉手也行。第一題定調——今天這場對工程師和主管講的是同一件事的兩面：工程師關心邊界畫在哪自己才敢放手，主管關心按 approve 的那個人是誰。記住現場比例，第 28 頁 accountability 會回收：「剛才舉手的主管們，責任滑過去的那個人就是你」。第二題（有讓 agent 碰過正式環境嗎）視時間取捨，分佈本身就是第 6-8 頁論證的現場證據。Slido 整場開著，Q&A 的問題也丟這裡。","花 30 秒設定期待，這樣後面就不會有人在等一個不會來的段落。會講的：firmware build 這條 loop 裡，人跟 agent 的邊界該畫在哪；一組真的在跑、而且開源的 skill；還有我自己量到的數字，含缺點。不會講的：Android／AOSP 教學——我會用 fastboot、dtbo、vendor blob 這些詞但不會解釋，不熟也沒關係，聽邏輯就好；prompt 技巧；模型比較或 benchmark；還有任何公司內部的東西。最後一句：如果你做的不是 Android，把 AOSP 換成你的 Yocto、你的 SDK，判準完全一樣。","從第一性原理開始，不要一開始就丟工具。firmware 開發最根本的三條約束：第一，firmware 只有在真的硬體上跑起來才算被驗證——模擬器不等於那台裝置。第二，要上硬體，source 必須整包變成一個 image，這一步是不可分割的，沒有「只編這一行」。第三，所以每驗證一個假設，就得付一次完整的 sync → build → flash → verify。推論：進度的單位不是「寫了幾行 code」，是「跑完幾個驗證過的 loop」。這個詞從這裡開始貫穿全場——後面講的每一件事都是在講這個 loop。而一天能驗證幾個假設 = 迴圈次數 × 每圈的時間。所以瓶頸從來不是打字，是這條迴圈。這也決定了後面所有討論的方向：要嘛縮短一圈的時間，要嘛讓一圈不佔用人。","這全部是公開、可重現的——AOSP 加 Pixel 8。第 1 步是錨點：先讀裝置目前跑什麼——build ID，連帶 bootloader / baseband 版本——後面每一步都要跟它對齊。然後指第 4、6 步：repo sync 要 30–90 分鐘，build 1–3 小時。兩段長等待，其他都是固定程序。有人問 license 的話：vendor blob 的授權條款是我本人接受過一次的，agent 只是在那個授權下重新下載——agent 不替我簽任何東西。","把 pipeline 放回真實的工作情境：一張 JIRA ticket——「eng build suspend 後 Wi-Fi 掉線」。真正的工程工作只在兩端：前面讀 log、形成假設、決定要改哪裡；後面驗證這個修法到底對不對。中間那三到六小時——sync、build、flash——是機器在做，我只是被綁著。而且假設錯了，整條 bar 要再跑一次。一天下來我可能只驗證了兩、三個假設。這才是 firmware 開發真正的節奏，也是為什麼「AI 幫你寫 code」搞錯重點。（互動版：alanhc.github.io/android_skills） 接 slido 停點（60–90 秒）：講完「一輪 2–5 小時」先別翻頁，開 slido 第 2 題——你自己的 build 迴圈一輪多久？<30 分鐘 / 1–3 小時 / 半天以上 / 我不跑 build。等分佈出來，直接拿現場數據接論證：「在座 X 成的人一輪要半天——這就是為什麼問題從來不是打字速度」。","這一張就是整場 talk。同樣七步，現在貼上標籤。只有三步需要人：查 tag 時版本對不齊、非預期的編譯錯誤、flash 時硬體異常。其他全是確定性程序加等待——正是 agent 該接手的東西。","重新定調。每場 AI talk 都在問「模型能做什麼」。真正有用的工程問題是：人跟 agent 的邊界該畫在哪——哪些步驟 agent 全權負責、哪裡必須停下來交還給人。這是設計問題，而且它背後有 45 年的理論。","這是分段點，也是下一頁的說明書：接下來那張時間線有四排，先讓大家知道要看什麼。第一排是理論——1978 到 2000，回答「該自動化到什麼程度」。第二排是能力——2017 到 2022，機器終於能讀 log、能推理。第三排是基礎建設——CI、容器、CD 的核准閘門，這是軟體業已經驗證過的做法。第四排是這兩年的 agent 實作。四排合起來要說的事情很簡單：每一塊都有人做了，就是沒有人把它們接起來放到 firmware build 上。","三條並排的時間線，讓大家看到中間那 17 年不是空白，只是換了跑道。上面一條：1978 Sheridan 十級量表，2000 Parasuraman 四階段——理論在這裡就成熟了，主張是「決定什麼該自動化要有客觀依據」。中間一條是能力的補齊：2017 Transformer、2020 GPT-3、2022 ChatGPT——機器終於能讀 log、能推理。下面一條是最近兩年的工程實作：2024 Ng 的 agentic patterns、2024 年 11 月 Anthropic 發布 MCP、2025 harness / skills 普及、2026 loop engineering。補充：這條時間線是我挑的里程碑，不是正式起源年表。重點在最後那句：舊文獻回答「自動化到什麼程度」，新工具讓我們真的有能力去畫那條線——但沒人告訴你畫在哪。那就是這場 talk。 第三條 infrastructure 那排是給軟體背景的聽眾一個熟悉的錨點：CI 用自動化測試當客觀檢查、容器讓 build 可重現、CD 把部署自動化但 production 仍然要人按核准。這正是我後面三準則的同一套邏輯，只是 DevOps 已經在雲端服務上做了二十年，而 firmware build 還沒有人這樣做。順帶一提 DevSecOps：它把安全檢查左移、把 gate 寫成 code，等於承認「該人看的地方」是可以被設計、被編碼的——這個想法後面第 22 頁會再回來。講到這裡可以停一下：今天要做的事情，其實是把 DevOps 那套判斷搬到硬體迴圈上。","這張是新的錨點圖，來自 Andrew Ng 今年六月底 The Batch 的信：0 到 1 的開發其實是三個不同時鐘的迴圈疊在一起。分鐘級：agentic coding loop，agent 寫、跑、修，自己迭代到滿足終止條件——決定權在 agent。小時級：developer feedback loop，人看結果、調方向、改 spec——決定權在人。天級以上：真實使用者跟市場的回饋。重點講最下面那行：firmware build loop 很特別，它橫跨前兩層——wall time 是小時級（build 要跑幾小時），但真正需要人判斷的時刻是分鐘級、而且稀疏。這就是為什麼邊界問題在 firmware 特別尖銳：你不能守在分鐘級的迴圈旁邊等一個小時級的結果。後面講到三準則和 skill 的時候，會一直回來指這張圖——每個準則其實就是在回答「這一步屬於哪個迴圈、誰的時鐘、誰決定」。","先給原話，讓大家知道這不是我編的。Boris Cherny——Claude Code 的負責人——2026 年 6 月講的：他已經不 prompt 了，他寫 loop，loop 去 prompt Claude；他的工作是寫 loop。OpenClaw 的 Peter Steinberger 幾乎同時講了同一件事，Addy Osmani 把它命名為 loop engineering。這段話爆紅是有原因的：它精準描述了角色的轉變。但注意他們談的都是「怎麼讓 loop 自己跑下去」——停止條件、verifier、token 成本。沒有人回答：這個 loop 應該在哪裡停下來把方向盤交還給人。在寫軟體、跑測試的情境下這個問題不痛，因為錯了就 revert。但在 firmware，flash 一次就可能讓一台機器變磚。所以我要補的就是那句話沒說的 where。這場 talk 的貢獻很窄，就是這一句。","帶回家的一張——請大家拍這張。而且要講清楚它怎麼接回前面的理論：每張卡片下面那行就是 Parasuraman 的四階段加 Sheridan 的量表位置。可逆性管的是「action implementation」這個階段——bootloader unlock、flashall 不可逆，所以壓在低自動化，人來確認。可驗證性對應 stage 2 到 4：有客觀檢查（SHA-256、build pass/fail、CI）就是 Parasuraman 說的 objective basis，從資訊分析到執行都可以拉到 LoA 8–10，agent 全權。上下文判斷對應 stage 3 decision selection——找不到 tag、非預期錯誤、硬體異常，這階段壓在 LoA 4 以下，由人決定。所以這三條不是我發明的新框架，是把 2000 年那篇的四階段，落到 firmware pipeline 上可以照著做的問句。 補研究依據（Context judgment 這張卡）：人因研究顯示，人 out-of-the-loop 越久，接手表現越差——自動駕駛的 takeover 研究指出，預警時間長短與多模態警示會直接影響接手品質與信任（Human Factors, 2025）。所以「需要 context 就交回給人」不只要交，還要交得夠早、訊號夠明確、附上完整 log。另外 SafeAgentBench（2024）顯示頂尖模型仍會產生不安全動作，這正是這條準則存在的理由。輔助型機器人領域也一樣，human-in-the-loop 至今仍是主流範式（HRI, 2025）。","上一頁是三張卡，這一頁把它接成一條可以照著跑的判斷流。拿任何一個 build step 進來，照順序問三個問題。第一題：不可逆嗎？bootloader unlock、flashall——是，就停在人確認，量表壓在 2 到 3，不用問下去。第二題：有客觀檢查嗎？SHA-256、build pass/fail、CI——有，agent 全權，推到 8 到 10。第三題：剩下的就是需要上下文的：找不到 tag、非預期錯誤、硬體異常——交還給人，量表不超過 4。強調順序是有意義的：可逆性先問，因為不可逆的錯誤沒有第二次機會；可驗證性第二，因為它決定 agent 能不能自己收斂。demo 裡兩個 skill 的停頓點，就是這條流程跑出來的結果。 接 slido 停點（90 秒）：這頁講完開 slido 第 3 題（quiz）——agent 跑到 fastboot flashall，裝置是 locked test device，它該怎麼做？a) 直接跑 b) 停下來問人 c) 跳過。正解 b：不可逆，第一題就攔下來。公佈答案後說：「恭喜，你們剛剛親手做了一次 loop engineering」。這是全場的記憶點。","這頁是從理論轉到實作的轉場，開場先講清楚為什麼要停下來講名詞：上一頁決定了邊界畫在哪，這頁要回答「那條線到底寫在哪裡」。CLI、MCP、skill 三個詞常被混用，但在這個問題上它們的角色完全不同——講完這三個，下一頁的 harness 圖才有地方可以掛。 三個東西常被混為一談。CLI 是確定性的執行者——fastboot、repo，工作是它做的，但它不做判斷。MCP 是協定——在執行期把工具跟資料接給模型，解決的是「接線」。Skill 是程序性知識——一份 markdown 加腳本，告訴 agent 什麼時候做什麼、哪裡該停。重點：三準則畫出來的邊界，最後就是寫在 skill 裡的幾句話——「flashall 會壞，逐分割區刷」「flash 前停下來等確認」。邊界是用文字部署的。","重要的觀念釐清：agent 不是一個東西，agent = model + harness。model 只做推理——讀 log、決定下一步。harness 是它周圍的整套機制：agent loop、工具與 MCP、權限、停止條件，而 skill 也住在 harness 裡，不是 harness 底下的一層。所以答案是：我的三準則不在 model 裡，而是寫在 harness 的權限設定和 skill 檔案裡。這意味著邊界是可以 code review、可以版控、可以開源的工程產物——這也是我能把它推上 GitHub 的原因。順便說：模型再變強，這層都還在，只是內容會換。","上一頁說邊界寫在 harness 和 skill 檔案裡，這頁回答「為什麼寫下來品質就會變好」——這不是我的偏方，是 2025 到 2026 整個業界收斂出來的方法論，叫 spec-driven development。對照很簡單：vibe coding 是 Karpathy 那個詞，隨口 prompt、agent 猜你的意思、產出看起來合理但慢慢偏掉；SDD 反過來，先把要做什麼、怎麼驗收寫成有版本控制的 spec，agent 對著 spec 做，spec 是 single source of truth。現在 GitHub Spec Kit、AWS Kiro、Claude Code 全都內建這套——而且社群比官方更早：obra 的 Superpowers 是最多星的 Claude Code plugin（17 萬+ 星，後來進了官方 marketplace），它做的事就是用 skill 強制這個順序——不先 brainstorm 出 spec、不拆成小任務，就不准寫 code，實作階段還強制 TDD。它的核心主張一句話：多數 agent 失敗是 spec 失敗，不是 model 失敗。這句可以直接講。也值得點出：Superpowers 本身就是用 skill 檔案實作的——跟我的 SKILL.md 是同一種機制，只是它 spec 的對象是軟體開發流程，我 spec 的是 firmware build pipeline。重點是最下面那行：spec 之所以有效，就是我的第二條準則——spec 裡的驗收條件把「對不對」變成可檢查的問題，可驗證性上去了，自動化程度才推得上去。我的 SKILL.md 就是 firmware build 的 spec：每一步該產出什麼、怎麼驗證、哪裡要停，全部寫死在檔案裡，改動走 code review。所以 prompt 是一次性的，spec 是資產。它本身也是個 loop：specify、implement、verify，需求變了改 spec 重跑——跟 loop engineering 是同一個形狀。","框架的實作。輸入只有一個 Build ID——getprop 從裝置讀出來的那個。skill 自己解析 tag、下載驗證 vendor blob、sync、build——全是 agent 負責，因為每步都有客觀檢查。然後它在 flashall 前停下來，因為那是不可逆的一步：通知我、等我確認。邊界位置就是三準則的直接應用。","三個 repo 都開源在我的 GitHub。aosp-build-skills 管 build 側：tag 解析、blob 驗證、sync、build。android-flash-skills 管燒錄側：它存在的理由是 fastboot flashall 在近期 Pixel bootloader 上必然卡在 dtbo——flashall 沒補 _slot 後綴，寫到不存在的分割區。解法：逐一分割區、帶明確 slot 後綴刷。還有兩個坑：userdebug 要關 dm-verity 不然無限重開機；驗證開機不能只看 boot_completed=1，要確認 launcher 真的在前景。這些坑就是 skill 承載的知識。 第三個是 android-build-remote-skills：build 不會跑在我的筆電上，這個 skill 負責把整條流程推到遠端機器、把 log 串回來、連線斷掉也不會死。這一個是我寫完前兩個之後的心得——真正讓我能同時跑三條 pipeline 的關鍵其實是這一層。","這頁是真的東西，不是整理過的框架。我第一次讓 agent 一路跑到燒錄，就是在這裡出事的：fastboot flashall 寫 dtbo 的時候直接 FAILED，remote 回 no such partition——因為 flashall 沒補 slot 後綴。那天晚上我花了幾個小時才確定不是我的 build 有問題，是這條指令在近期 Pixel bootloader 上就是會壞。修法很無聊：逐個分割區、帶明確 slot 後綴刷。下面那塊就是這週真實跑出來的 log：dtbo_b OKAY、16 個分割區全過、兩分鐘刷完、/data 沒動。重點是這種知識沒寫下來就會再踩一次，而寫下來的地方就是 SKILL.md。這也是為什麼我說 skill 是程序性知識，不是 prompt。","這頁現在是一條判斷流：step 失敗 → 有已知恢復路徑嗎？有，走左邊，agent 直接處理；沒有，走右邊，停下來找人。兩類失敗、兩種行為。可預期的失敗有已知恢復方式：網路斷線 retry、repo sync 卡住降並行——agent 直接處理。非預期的失敗是上下文判斷領域：找不到 tag 或編譯錯誤就立刻停下通知，附完整 log，讓我從證據開始。這個切分才是你敢離開終端機的原因。 這裡要講底下那行——為什麼非預期的那邊必須是人。因為 log 不是天生的真相，它是硬體行為的產物，讀懂它需要知道 log 是怎麼被生出來的。舉最基本的 UART：boot 掛掉的時候 adb 根本不存在，唯一的證據通道是序列埠；baud rate 不對，你看到的是亂碼不是 log；TX 有輸出不代表 RX 活著，console 可能是單向的；kernel driver 還沒載入之前的那段，只有 early console 看得到。agent 讀 log 讀的是字串，工程師讀 log 讀的是「這行字為什麼會在這裡、少了哪行不該少的」。這就是上下文判斷不能外包的具體形態——不是模型不夠聰明，是判斷需要的知識在硬體那邊，不在文字裡。","不現場跑——會場沒 Wi-Fi，而且真的 build 要好幾個小時；這個限制本身就是論點。影片內容：Build ID 進去、pipeline 自主跑起來、然後在 flash 前的邊界暫停。如果影片掛了，切到靜態截圖 fallback，講同樣三個節拍。","走讀第一拍：輸入就是一句自然語言——把 Pixel 8 刷成 BP4A.251205.006，用遠端機器 build 完再刷。沒有指令、沒有參數，一個 Build ID 加意圖。後面所有事都從這句話開始。","走讀第二拍，這張是邊界的實況：換手到 flash-pixel-aosp skill 之後，它的預設建議是 --wipe（factory reset /data），但這一步不可逆——wipe 下去資料就沒了。所以它不自己決定，停下來問我：刷機要不要連 /data 一起 wipe？我說不要，它才繼續。這就是第 13 頁第一條準則 reversibility 被觸發的實況：不可逆的動作壓到低自動化，人來確認。順帶可以提：前面 build 側也有一次類似的停頓（out/ 已有 build，問 incremental 還是重編），那是第三條 context judgment——同一套準則，兩個 skill 都在執行。","走讀第三拍：我回答之後就沒再碰過鍵盤——遠端 incremental build 六秒完成、rsync 抓 image 回 Mac、flash 全部 partition OKAY、然後 skill 自動跑開機驗證：sys.boot_completed=1、launcher 在前景、fingerprint 跟 build 一致、/data 保留沒 wipe。兩個 skill 串起來，人只出現在需要判斷的那一格。 最後補一句底下的小字：每跑一次，skill 都會留一份完整收據——結構化的摘要報告（指令序列、每個分割區的 fastboot 輸出、開機驗證結果），加上全量 dmesg 和 logcat 的 companion 檔。這就是後面 accountability 那頁說的「approve 需要的證據」——不是我說它成功，是 log 說它成功。","真正的價值不是速度——build 還是要跑幾小時。是一個人現在可以同時持有 N 個專案的狀態。以前：序列跑 build，注意力被不可預測的中斷切碎。現在：三個 agent 各跑一條 pipeline，我的工作縮減成邊界設計路由給我的那些例外。這就是執行者到監督者的轉變。 有人會問這算不算 multi-agent。要誠實：我跑的是 N 個獨立的 single agent，不是會互相協作的 multi-agent system——orchestrator 拆任務、subagent 認領那種架構存在，但 firmware build 用不到，因為三條 pipeline 之間沒有需要協調的東西，硬要上 orchestrator 只是多一層會出錯的間接。真正跨不過去的瓶頸不在 agent 端而在人這端：人機研究把它叫 fan-out——一個人能監督幾個自主系統，取決於它能被放著不管多久、跟每次介入要花多久。agent 可以無限平行，監督者的注意力不能。所以就算改天真的上了 multi-agent，邊界準則一個字都不用改——每個 agent 撞到不可逆、不可驗證、需要上下文的那條線，還是得停下來找人；人數不變，排隊的 agent 變多而已。 這裡把第 10 頁那句話收回來：Cherny 說他的工作是寫 loop。在 firmware 要多加一句——寫 loop，而且決定 loop 在哪裡停。這是整場 talk 的一句話版本，也直接對回講題「讓 AI 跑 build，你來解難題」。","明確講這是我自己的量測，不是 benchmark——粗略的真實數字也比沒有好。回收工時：等待的 wall-clock 換回來的工作時間。介入率：人為停下次數除以總 run 數——誠實指標；如果是零，代表我在誇大。並行專案數：上一張講的監督者容量。","團隊尺度的一張，這頁我有一篇長文，撿三個概念就好。第一，automation bias：人因研究早就記錄，自動化只要對得夠久，人就會停止真的去看，最後盲目放行。第二，responsibility gap（Matthias 2004）：傳統究責建立在「你控制、你能預見」，但 agent 的產出你既沒寫過也無法完全預見——鏈條會斷。第三，accountability sink（Davies 2024）：組織最便宜的反應是指派一個 owner 當黑洞的招牌——一個不能否決 agent、不能改它邊界的 owner，只是出事時填報告的名字。所以這頁的主張是：approve 那個按鈕要有效，按的人必須同時拿到兩樣東西——能判斷的證據（sandbox、測試、CI，這是 DevSecOps 二十年前就想清楚的：把檢查左移、把 gate 寫成 code），和說「不簽」的權力。責任可以留在人身上，前提是權威也在。時間夠的話補一個經濟學雙關：AI agent 恰好叫 agent，但經濟學的 principal-agent problem 靠兩根支柱解——觀察它做了什麼、用誘因契約綁住它；AI agent 把兩根同時抽掉：推理是黑箱（無法觀察），沒有考績聲譽（無法用誘因綁）。所以老闆那股說不清的不安有教科書級的名字：你請了一個既監督不了、也沒有契約能綁住的 agent，唯一的修法是把它重新掛回一個可以被誘因約束的人身上。收尾一句：這些問題——不好管、沒人負責、怕被取代——沒有一個是 agent 發明的，agent 只是顯影劑，把組織原本靠默契糊住的裂縫一次照亮。想深入的人，我寫過一篇從眾手問題講到問責黑洞的長文，QR 在最後一頁的網站裡。 （選配停點，時間緊就跳過）進這頁之前開 word cloud——one word：你絕不讓 agent 單獨做的事？飄出來的幾乎都會是 flash / deploy / merge / prod。指著字雲說：你們的直覺就是可逆性準則——然後才進這頁的責任論證。","同一家公司、兩個公開數字，一起看才有意義。左邊：內部 agent 每週開 1,300 多個 PR，零人手寫 code，但每一個都經過人審才 merge。右邊：今年六月 Anthropic 發表 Fable 5 時 Stripe 提供的案例——五千萬行的 Ruby codebase，跨整個 codebase 的遷移一天完成，內部原本估一個團隊要兩個多月。這裡一定要親手把 caveat 講出來，不要讓聽眾自己去懷疑：那是機械性的大規模改寫，模式明確、每一步都有測試可以驗證。換句話說它之所以能跑，正是因為它落在我第二條準則的甜蜜點上——高可驗證性就能推到高自動化。反過來說也成立：如果那次遷移需要的是上下文判斷，一天絕對做不完。所以這頁不是在說「AI 好強」，是在說規模來自基礎建設：sandbox、測試套件、CI 閘門，不是模型變聰明。而那道 review gate 就是上一頁講的責任錨點。","這頁把鏡頭拉到整個開源生態：同一年裡，三個關鍵專案對 agent 產出畫了三條不一樣的線，而且每條線都對到我前面講的一個概念。第一，Linux kernel——對 firmware 的人來說最相關——今年四月隨 Linux 7.0 出了正式的 AI policy：AI 可以用，但只有人能簽 Signed-off-by，因為 DCO 是法律文件；AI 協助要用 Assisted-by tag 揭露；送 patch 的人負全責。這就是第 22 頁的責任錨點被寫成正式規則。第二，GCC 七月底的政策：legally significant 的 LLM 生成或衍生內容一律不收，人工清乾淨也不豁免，例外是可驗證又不進本體的 test case——這是 provenance，驗證買不到的第四個約束。第三，curl 是反面教材：bug bounty 被 AI slop 淹死，確認率從 15% 掉到 5% 以下，一月底乾脆收掉整個計畫。curl 的教訓要講清楚：那些 slop 報告正是「沒有驗證閘門的 agent 產出」——對維護者來說是 denial of service。三條線合起來：開源世界已經在實作「邊界畫在哪」這個問題，答案跟我的準則一致——人簽名、可驗證、來源可問責。對 firmware 的意義不變：內部 branch 照三準則跑，要 upstream 先讀該專案的 AI policy，而且現在每個大專案都有一份了。","三句話收尾。一：firmware 的時間花在 sync-build-flash-verify 迴圈，不是打字寫 code。二：寫 loop，並且決定 loop 在哪裡停——判準就是可逆性、可驗證性、上下文判斷。這句就是要大家帶走的一句。三：規模化到團隊時，人的 review gate 是責任的錨點。然後金句。","照 COSCUP 的建議保護時間：這裡收兩三個問題，深入的邀去 Hacking Room 或會後直接來找我。Q&A 期間這頁留在畫面上——LinkedIn QR code 給想聯繫的人，repo 連結給想直接看 code 的人。想看更完整的文字版，blog（alanhc.github.io/til）有相關筆記。"]</script>
@@ -186,7 +293,7 @@ a:hover { color: #7DE9F7; }
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 16px;">Public, reproducible</div>
     <h2 style="font-size: 56px; font-weight: 600; margin: 0;">The real pipeline: AOSP on a Pixel 8 <span style="font-family: 'JetBrains Mono', monospace; font-size: 32px; color: var(--dim);">(shiba)</span></h2>
   </div>
-  <div style="font-family: 'JetBrains Mono', monospace; font-size: 27px; line-height: 1.5; display: flex; flex-direction: column; gap: 17px;">
+  <div data-anim="stagger" style="font-family: 'JetBrains Mono', monospace; font-size: 27px; line-height: 1.5; display: flex; flex-direction: column; gap: 17px; --dc-step: 60ms;">
     <div><span style="color: var(--faint);">1</span>&nbsp;&nbsp;adb shell getprop ro.build.id <span style="color: var(--dim); margin-left: 18px; font-size: 22px;">check what the device runs first</span></div>
     <div><span style="color: var(--faint);">2</span>&nbsp;&nbsp;look up AOSP source tag <span style="color: var(--dim); margin-left: 18px; font-size: 22px;">android-15.0.0_r34</span></div>
     <div><span style="color: var(--faint);">3</span>&nbsp;&nbsp;download vendor blob · verify SHA-256</div>
@@ -287,7 +394,7 @@ a:hover { color: #7DE9F7; }
 
 <section data-label="11 Timeline" data-speaker-notes="三條並排的時間線，讓大家看到中間那 17 年不是空白，只是換了跑道。上面一條：1978 Sheridan 十級量表，2000 Parasuraman 四階段——理論在這裡就成熟了，主張是「決定什麼該自動化要有客觀依據」。中間一條是能力的補齊：2017 Transformer、2020 GPT-3、2022 ChatGPT——機器終於能讀 log、能推理。下面一條是最近兩年的工程實作：2024 Ng 的 agentic patterns、2024 年 11 月 Anthropic 發布 MCP、2025 harness / skills 普及、2026 loop engineering。補充：這條時間線是我挑的里程碑，不是正式起源年表。重點在最後那句：舊文獻回答「自動化到什麼程度」，新工具讓我們真的有能力去畫那條線——但沒人告訴你畫在哪。那就是這場 talk。 第三條 infrastructure 那排是給軟體背景的聽眾一個熟悉的錨點：CI 用自動化測試當客觀檢查、容器讓 build 可重現、CD 把部署自動化但 production 仍然要人按核准。這正是我後面三準則的同一套邏輯，只是 DevOps 已經在雲端服務上做了二十年，而 firmware build 還沒有人這樣做。順帶一提 DevSecOps：它把安全檢查左移、把 gate 寫成 code，等於承認「該人看的地方」是可以被設計、被編碼的——這個想法後面第 22 頁會再回來。講到這裡可以停一下：今天要做的事情，其實是把 DevOps 那套判斷搬到硬體迴圈上。" style="background: var(--bg); color: var(--txt); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 34px; padding: 0 100px; box-sizing: border-box;">
   <h2 style="font-size: 50px; font-weight: 600; margin: 0;">The theory was ready in 2000. The machines weren’t.</h2>
-  <div style="display: grid; grid-template-columns: 250px repeat(3, 1fr); column-gap: 40px; row-gap: 24px; align-items: start; max-width: 1720px;">
+  <div data-anim="stagger" style="display: grid; grid-template-columns: 250px repeat(3, 1fr); column-gap: 40px; row-gap: 24px; align-items: start; max-width: 1720px; --dc-step: 32ms;">
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--dim); letter-spacing: 0.04em; line-height: 1.35; align-self: center;">theory<br><span style="color: var(--dim);">who does what</span></div>
     <div>
       <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700; color: var(--txt); margin-bottom: 6px;">1978</div>
@@ -304,7 +411,7 @@ a:hover { color: #7DE9F7; }
       <div style="font-size: 25px; font-weight: 600; margin-bottom: 8px;">And the catch</div>
       <div style="font-size: 24px; color: var(--dim); line-height: 1.35;">The higher the level, the further the human drifts <span style="color: var(--txt);">out of the loop</span>.</div>
     </div>
-    <div style="grid-column: 1 / -1; border-top: 1px solid var(--line);"></div>
+    <div data-anim="draw" style="grid-column: 1 / -1; border-top: 1px solid var(--line);"></div>
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--dim); letter-spacing: 0.04em; line-height: 1.35; align-self: center;">capability<br><span style="color: var(--dim);">machines that reason</span></div>
     <div>
       <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700; color: var(--txt); margin-bottom: 6px;">2017</div>
@@ -321,7 +428,7 @@ a:hover { color: #7DE9F7; }
       <div style="font-size: 25px; font-weight: 600; margin-bottom: 8px;">ChatGPT</div>
       <div style="font-size: 24px; color: var(--dim); line-height: 1.35;">reads logs, explains errors</div>
     </div>
-    <div style="grid-column: 1 / -1; border-top: 1px solid var(--line);"></div>
+    <div data-anim="draw" style="grid-column: 1 / -1; border-top: 1px solid var(--line);"></div>
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--dim); letter-spacing: 0.04em; line-height: 1.35; align-self: center;">infrastructure<br><span style="color: var(--dim);">why we dared automate</span></div>
     <div>
       <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700; color: var(--txt); margin-bottom: 6px;">2001</div>
@@ -338,7 +445,7 @@ a:hover { color: #7DE9F7; }
       <div style="font-size: 25px; font-weight: 600; margin-bottom: 8px;">CD with approval gates</div>
       <div style="font-size: 24px; color: var(--dim); line-height: 1.35;">deploy is automatic, prod still asks a human</div>
     </div>
-    <div style="grid-column: 1 / -1; border-top: 1px solid var(--line);"></div>
+    <div data-anim="draw" style="grid-column: 1 / -1; border-top: 1px solid var(--line);"></div>
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.04em; line-height: 1.35; align-self: center;">practice<br><span style="color: var(--dim);">agents that act</span></div>
     <div>
       <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700; color: var(--ac); margin-bottom: 6px;">2024</div>
@@ -365,7 +472,7 @@ a:hover { color: #7DE9F7; }
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 16px;">Ng · The Batch · Jun 2026</div>
     <h2 style="font-size: 64px; font-weight: 700; line-height: 1.25; margin: 0;">Three loops, three clocks, three deciders</h2>
   </div>
-  <div style="display: flex; flex-direction: column; gap: 26px; max-width: 1680px;">
+  <div data-anim="stagger" style="display: flex; flex-direction: column; gap: 26px; max-width: 1680px; --dc-step: 110ms;">
     <div style="display: flex; align-items: baseline; gap: 30px;">
       <span style="font-family: 'JetBrains Mono', monospace; font-size: 25px; color: var(--txt); width: 430px; flex: none;">agentic coding loop</span>
       <span style="font-family: 'JetBrains Mono', monospace; font-size: 26px; color: var(--dim); width: 200px; flex: none;">minutes</span>
@@ -435,8 +542,8 @@ a:hover { color: #7DE9F7; }
 <div style="position: absolute; left: 100px; right: 100px; bottom: 34px; display: var(--chrome-display, flex); justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--faint);"><span>Firmware Dev &amp; Agentic AI · COSCUP 2026</span><span style="color: var(--dim);">14 / 33</span></div>
 </section>
 
-<section data-label="15 The decision tree" data-speaker-notes="上一頁是三張卡，這一頁把它接成一條可以照著跑的判斷流。拿任何一個 build step 進來，照順序問三個問題。第一題：不可逆嗎？bootloader unlock、flashall——是，就停在人確認，量表壓在 2 到 3，不用問下去。第二題：有客觀檢查嗎？SHA-256、build pass/fail、CI——有，agent 全權，推到 8 到 10。第三題：剩下的就是需要上下文的：找不到 tag、非預期錯誤、硬體異常——交還給人，量表不超過 4。強調順序是有意義的：可逆性先問，因為不可逆的錯誤沒有第二次機會；可驗證性第二，因為它決定 agent 能不能自己收斂。demo 裡兩個 skill 的停頓點，就是這條流程跑出來的結果。 接 slido 停點（90 秒）：這頁講完開 slido 第 3 題（quiz）——agent 跑到 fastboot flashall，裝置是 locked test device，它該怎麼做？a) 直接跑 b) 停下來問人 c) 跳過。正解 b：不可逆，第一題就攔下來。公佈答案後說：「恭喜，你們剛剛親手做了一次 loop engineering」。這是全場的記憶點。" style="background: var(--bg); color: var(--txt); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 0 100px; box-sizing: border-box;">
-  <div style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">quiz · what should the agent do?</span></div>
+<section data-anim="stagger" data-label="15 The decision tree" data-speaker-notes="上一頁是三張卡，這一頁把它接成一條可以照著跑的判斷流。拿任何一個 build step 進來，照順序問三個問題。第一題：不可逆嗎？bootloader unlock、flashall——是，就停在人確認，量表壓在 2 到 3，不用問下去。第二題：有客觀檢查嗎？SHA-256、build pass/fail、CI——有，agent 全權，推到 8 到 10。第三題：剩下的就是需要上下文的：找不到 tag、非預期錯誤、硬體異常——交還給人，量表不超過 4。強調順序是有意義的：可逆性先問，因為不可逆的錯誤沒有第二次機會；可驗證性第二，因為它決定 agent 能不能自己收斂。demo 裡兩個 skill 的停頓點，就是這條流程跑出來的結果。 接 slido 停點（90 秒）：這頁講完開 slido 第 3 題（quiz）——agent 跑到 fastboot flashall，裝置是 locked test device，它該怎麼做？a) 直接跑 b) 停下來問人 c) 跳過。正解 b：不可逆，第一題就攔下來。公佈答案後說：「恭喜，你們剛剛親手做了一次 loop engineering」。這是全場的記憶點。" style="background: var(--bg); color: var(--txt); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 0 100px; box-sizing: border-box; --dc-step: 90ms;">
+  <div data-anim="hold" style="position: absolute; top: 44px; right: 100px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 20px;"><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--ac);">⟶ slido</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 19px; color: var(--dim);">quiz · what should the agent do?</span></div>
 
   <div style="margin-bottom: 10px;">
     <h2 style="font-size: 56px; font-weight: 600; margin: 0 0 12px;">Run every step through it</h2>
@@ -472,7 +579,7 @@ a:hover { color: #7DE9F7; }
       <div style="font-family: 'JetBrains Mono', monospace; font-size: 21px; color: var(--dim); margin-top: 6px;">cap at LoA 4 · no tag, unexpected error, HW anomaly</div>
     </div>
   </div>
-  <div style="position: absolute; left: 100px; right: 100px; bottom: 34px; display: var(--chrome-display, flex); justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--faint);"><span>Firmware Dev &amp; Agentic AI · COSCUP 2026</span><span style="color: var(--dim);">15 / 33</span></div>
+  <div data-anim="hold" style="position: absolute; left: 100px; right: 100px; bottom: 34px; display: var(--chrome-display, flex); justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--faint);"><span>Firmware Dev &amp; Agentic AI · COSCUP 2026</span><span style="color: var(--dim);">15 / 33</span></div>
 </section>
 
 <section data-label="16 Skills vs MCP vs CLI" data-speaker-notes="這頁是從理論轉到實作的轉場，開場先講清楚為什麼要停下來講名詞：上一頁決定了邊界畫在哪，這頁要回答「那條線到底寫在哪裡」。CLI、MCP、skill 三個詞常被混用，但在這個問題上它們的角色完全不同——講完這三個，下一頁的 harness 圖才有地方可以掛。 三個東西常被混為一談。CLI 是確定性的執行者——fastboot、repo，工作是它做的，但它不做判斷。MCP 是協定——在執行期把工具跟資料接給模型，解決的是「接線」。Skill 是程序性知識——一份 markdown 加腳本，告訴 agent 什麼時候做什麼、哪裡該停。重點：三準則畫出來的邊界，最後就是寫在 skill 裡的幾句話——「flashall 會壞，逐分割區刷」「flash 前停下來等確認」。邊界是用文字部署的。" style="background: var(--bg); color: var(--txt); font-family: 'IBM Plex Sans', sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 44px; padding: 0 100px; box-sizing: border-box;">
@@ -507,7 +614,7 @@ a:hover { color: #7DE9F7; }
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 16px;">agent = model + harness</div>
     <h2 style="font-size: 56px; font-weight: 600; margin: 0;">So where does the boundary actually live?</h2>
   </div>
-  <div style="display: flex; flex-direction: column; gap: 20px; max-width: 1560px;">
+  <div data-anim="stagger" style="display: flex; flex-direction: column; gap: 20px; max-width: 1560px; --dc-step: 130ms;">
     <div style="border: 1px solid var(--line); border-radius: 12px; padding: 30px 34px; display: flex; flex-direction: column; gap: 22px;">
       <div style="font-family: 'JetBrains Mono', monospace; font-size: 21px; color: var(--faint); letter-spacing: 0.14em;">AGENT</div>
       <div style="display: flex; align-items: center; gap: 30px;">
@@ -564,11 +671,11 @@ a:hover { color: #7DE9F7; }
     <h2 style="font-size: 56px; font-weight: 600; margin: 0;">One Build ID in → the whole pipeline runs</h2>
   </div>
   <div style="font-family: 'JetBrains Mono', monospace; font-size: 30px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 26px 36px; align-self: flex-start;">$ aosp-build <span style="color: var(--ac);">BP1A.250505.005.B1</span></div>
-  <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-family: 'JetBrains Mono', monospace;">
-    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">tag lookup</span><span style="color: var(--faint);">→</span>
-    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">blob + SHA-256</span><span style="color: var(--faint);">→</span>
-    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">repo sync</span><span style="color: var(--faint);">→</span>
-    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">lunch + m</span><span style="color: var(--faint);">→</span>
+  <div data-anim="stagger" style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap; font-family: 'JetBrains Mono', monospace; --dc-step: 100ms;">
+    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">tag lookup</span><span data-anim="draw" style="color: var(--faint);">→</span>
+    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">blob + SHA-256</span><span data-anim="draw" style="color: var(--faint);">→</span>
+    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">repo sync</span><span data-anim="draw" style="color: var(--faint);">→</span>
+    <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--dim); background: rgba(139,148,158,0.10); border: 1px solid var(--line);">lunch + m</span><span data-anim="draw" style="color: var(--faint);">→</span>
     <span style="display: inline-flex; align-items: center; gap: 12px; font-size: 22px; padding: 6px 18px 6px 12px; border-radius: 6px; color: var(--ac); background: var(--ac-fill); border: 1px solid var(--ac-line);">confirm flash</span>
   </div>
   <div style="position: absolute; left: 100px; right: 100px; bottom: 34px; display: var(--chrome-display, flex); justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--faint);"><span>Firmware Dev &amp; Agentic AI · COSCUP 2026</span><span style="color: var(--dim);">19 / 33</span></div>
@@ -672,7 +779,7 @@ a:hover { color: #7DE9F7; }
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase;">Demo walkthrough · 1 of 3 · the ask</div>
   </div>
   <div style="width: 1660px; height: 780px; background: #000; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex: none; display: flex; align-items: center; justify-content: center;">
-    <img src="./demo-frames/frame-00-t1s.png" alt="22 Demo 1 The ask" style="max-width: 100%; max-height: 100%; display: block;">
+    <video src="./demo-frames/clip-24-ask.mp4" poster="./demo-frames/frame-00-t1s.png" data-clip="1" muted="muted" loop="loop" playsinline="playsinline" autoplay="autoplay" preload="metadata" aria-label="22 Demo 1 The ask" style="max-width: 100%; max-height: 100%; display: block;"></video>
   </div>
   <p style="font-size: 30px; margin: 0; max-width: 1660px;">One sentence in: <span style="font-family: 'JetBrains Mono', monospace; color: var(--ac);">flash Pixel 8 to BP4A.251205.006, build on the remote machine first</span>. No flags, no scripts — a Build ID and an intent.</p>
   <div style="position: absolute; left: 100px; right: 100px; bottom: 34px; display: var(--chrome-display, flex); justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--faint);"><span>Firmware Dev &amp; Agentic AI · COSCUP 2026</span><span style="color: var(--dim);">24 / 33</span></div>
@@ -683,7 +790,7 @@ a:hover { color: #7DE9F7; }
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase;">Demo walkthrough · 2 of 3 · the boundary, live</div>
   </div>
   <div style="width: 1660px; height: 780px; background: #000; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex: none; display: flex; align-items: center; justify-content: center;">
-    <img src="./demo-frames/frame-04-t24s.png" alt="23 Demo 2 The boundary" style="max-width: 100%; max-height: 100%; display: block;">
+    <video src="./demo-frames/clip-25-boundary.mp4" poster="./demo-frames/frame-04-t24s.png" data-clip="1" muted="muted" loop="loop" playsinline="playsinline" autoplay="autoplay" preload="metadata" aria-label="23 Demo 2 The boundary" style="max-width: 100%; max-height: 100%; display: block;"></video>
   </div>
   <p style="font-size: 30px; margin: 0; max-width: 1660px;">The flash skill’s default is <span style="font-family: 'JetBrains Mono', monospace;">--wipe</span> — but wiping <span style="font-family: 'JetBrains Mono', monospace;">/data</span> is irreversible, so it <span style="color: var(--ac); font-weight: 600;">stops and asks first</span>. That is criterion one firing: irreversible → low automation, human confirms.</p>
   <div style="position: absolute; left: 100px; right: 100px; bottom: 34px; display: var(--chrome-display, flex); justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--faint);"><span>Firmware Dev &amp; Agentic AI · COSCUP 2026</span><span style="color: var(--dim);">25 / 33</span></div>
@@ -694,7 +801,7 @@ a:hover { color: #7DE9F7; }
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 24px; color: var(--ac); letter-spacing: 0.14em; text-transform: uppercase;">Demo walkthrough · 3 of 3 · hands-free finish</div>
   </div>
   <div style="width: 1500px; height: 700px; background: #000; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex: none; display: flex; align-items: center; justify-content: center;">
-    <img src="./demo-frames/frame-06-t36s.png" alt="24 Demo 3 Hands-free finish" style="max-width: 100%; max-height: 100%; display: block;">
+    <video src="./demo-frames/clip-26-finish.mp4" poster="./demo-frames/frame-06-t36s.png" data-clip="1" muted="muted" loop="loop" playsinline="playsinline" autoplay="autoplay" preload="metadata" aria-label="24 Demo 3 Hands-free finish" style="max-width: 100%; max-height: 100%; display: block;"></video>
   </div>
   <p style="font-size: 30px; margin: 0; max-width: 1660px;">After that one answer, no keyboard: build → fetch → flash → <span style="color: var(--ac); font-weight: 600;">boot verified</span> (<span style="font-family: 'JetBrains Mono', monospace;">sys.boot_completed=1</span>, fingerprint matches, /data intact). Two skills chained; the human appears once.</p>
   <p style="font-family: 'JetBrains Mono', monospace; font-size: 21px; color: var(--faint); margin: 0;">And every run writes a receipt: a summary report + full dmesg (8,699 lines) + logcat (31,512 lines) — the evidence an approver judges with.</p>
