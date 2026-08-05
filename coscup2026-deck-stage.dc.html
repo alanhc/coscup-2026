@@ -54,10 +54,20 @@
 
      The iframe is created on first open, so the deck holds no Slido
      connection unless you actually summon it. */
-  var SLIDO_URL = 'https://app.sli.do/event/b6zu29r28cX5FpsxJE48Rc';
+  /* The bare event URL redirects to /live/questions, so opening it always
+     landed on the Q&A tab and the poll never showed. Both tabs have their own
+     deep link, so each stop point names the view it wants via the value of
+     its data-slido attribute ("polls" or "questions"). */
+  var SLIDO_BASE = 'https://app.sli.do/event/b6zu29r28cX5FpsxJE48Rc/live/';
   var overlay = null;
 
-  function slidoToggle(force) {
+  function slidoView(el) {
+    var v = el && el.getAttribute && el.getAttribute('data-slido');
+    return v === 'questions' ? 'questions' : 'polls';   // polls is the default
+  }
+
+  function slidoToggle(force, view) {
+    view = view === 'questions' ? 'questions' : 'polls';
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'slido-overlay';
@@ -65,7 +75,8 @@
       panel.className = 'panel';
       var bar = document.createElement('div');
       bar.className = 'bar';
-      bar.innerHTML = '<span><b>slido</b> &nbsp;live</span><span>S / Esc to close</span>';
+      bar.innerHTML = '<span><b>slido</b> &nbsp;<i class="view"></i></span>'
+                    + '<span>S / Esc to close</span>';
       panel.appendChild(bar);
       overlay.appendChild(panel);
       overlay.addEventListener('click', function (ev) {
@@ -75,13 +86,21 @@
     }
     var willOpen = force === undefined ? !overlay.hasAttribute('data-open') : force;
     if (willOpen) {
-      if (!overlay.querySelector('iframe')) {          // lazy: first open only
-        var f = document.createElement('iframe');
-        f.src = SLIDO_URL;
+      var f = overlay.querySelector('iframe[data-v="' + view + '"]');
+      if (!f) {                          // lazy: each view loads on first use
+        f = document.createElement('iframe');
+        f.setAttribute('data-v', view);
         f.title = 'Slido';
         f.setAttribute('allow', 'clipboard-write');
+        f.src = SLIDO_BASE + view;
         overlay.querySelector('.panel').appendChild(f);
       }
+      overlay.querySelectorAll('iframe').forEach(function (o) {
+        o.removeAttribute('data-shown');
+      });
+      f.setAttribute('data-shown', '');
+      overlay.setAttribute('data-view', view);
+      overlay.querySelector('.view').textContent = view === 'questions' ? 'Q&A' : 'polls';
       overlay.setAttribute('data-open', '');
     } else {
       overlay.removeAttribute('data-open');
@@ -92,7 +111,7 @@
   // not depend on the keyboard reaching the page.
   document.addEventListener('click', function (e) {
     var chip = e.target && e.target.closest && e.target.closest('[data-slido]');
-    if (chip) { e.preventDefault(); e.stopPropagation(); slidoToggle(true); }
+    if (chip) { e.preventDefault(); e.stopPropagation(); slidoToggle(true, slidoView(chip)); }
   }, true);
 
   document.addEventListener('keydown', function (e) {
@@ -102,7 +121,9 @@
     if (e.key === 's' || e.key === 'S') {
       e.preventDefault();
       e.stopPropagation();   // keep deck-stage from acting on the same key
-      slidoToggle();
+      // S follows the current slide: the Q&A slide opens Q&A, the rest polls.
+      var here = document.querySelector('section[data-deck-active] [data-slido]');
+      slidoToggle(undefined, slidoView(here));
     } else if (e.key === 'Escape' && overlay && overlay.hasAttribute('data-open')) {
       e.preventDefault();
       e.stopPropagation();
@@ -165,7 +186,10 @@ a:hover { color: #7DE9F7; }
   flex: none;
 }
 #slido-overlay .bar b { color: var(--ac); font-weight: 500; }
-#slido-overlay iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+/* One iframe per view, kept alive once loaded: switching polls <-> Q&A by
+   swapping src would re-download the Slido app mid-talk. */
+#slido-overlay iframe { display: none; flex: 1; width: 100%; border: 0; background: #fff; }
+#slido-overlay iframe[data-shown] { display: block; }
 @media print { #slido-overlay { display: none !important; } }
 /* The "⟶ slido" chips double as a click target, so the overlay is reachable
    without the keyboard if a presenter remote owns the arrow keys. */
@@ -1058,7 +1082,7 @@ a:hover { color: #7DE9F7; }
       <span style="font-family: 'JetBrains Mono', monospace; font-size: 17px; color: #0D1117;">linkedin.com/in/alanhc316</span>
     </div>
     <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; line-height: 2.1; color: var(--dim);">
-      <div><span style="color: var(--faint); display: inline-block; width: 110px;">slido</span> <a data-slido="" href="https://app.sli.do/event/b6zu29r28cX5FpsxJE48Rc" target="_blank" rel="noopener">app.sli.do · b6zu29r28c</a> — drop questions here</div>
+      <div><span style="color: var(--faint); display: inline-block; width: 110px;">slido</span> <a data-slido="questions" href="https://app.sli.do/event/b6zu29r28cX5FpsxJE48Rc/live/questions" target="_blank" rel="noopener">app.sli.do · b6zu29r28c</a> — drop questions here</div>
       <div><span style="color: var(--faint); display: inline-block; width: 110px;">blog</span> <a href="https://alanhc.github.io/til">alanhc’s today i learned</a></div>
       <div><span style="color: var(--faint); display: inline-block; width: 110px;">me</span> <a href="https://alanhc.github.io/">alanhc.github.io</a> · <a href="https://www.linkedin.com/in/alanhc316/">LinkedIn</a></div>
     </div>
